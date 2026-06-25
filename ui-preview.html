@@ -1,0 +1,2131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DotAgent - UI Preview v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#1A1D21',
+                        sidebar: '#16191C',
+                        card: '#22262B',
+                        border: '#2F353D',
+                        primary: '#6366F1',
+                        'primary-hover': '#818CF8',
+                        success: '#22C55E',
+                        warning: '#F59E0B',
+                        error: '#EF4444',
+                        info: '#3B82F6',
+                        text: '#E5E7EB',
+                        'text-secondary': '#9CA3AF',
+                        'text-muted': '#6B7280',
+                    },
+                    keyframes: {
+                        'pulse-slow': { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.5' } },
+                        'flow': { '0%': { transform: 'translateX(0)', opacity: '0' }, '20%': { opacity: '1' }, '80%': { opacity: '1' }, '100%': { transform: 'translateX(100%)', opacity: '0' } },
+                        'slide-in': { '0%': { transform: 'translateY(-10px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+                        'checkmark': { '0%': { transform: 'scale(0)' }, '50%': { transform: 'scale(1.2)' }, '100%': { transform: 'scale(1)' } }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'flow': 'flow 1.5s ease-in-out infinite',
+                        'slide-in': 'slide-in 0.3s ease-out',
+                        'checkmark': 'checkmark 0.4s ease-out forwards'
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto { content-visibility: auto; }
+            .scrollbar-thin { scrollbar-width: thin; }
+            .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+            .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+            .scrollbar-thin::-webkit-scrollbar-thumb { background: #3A3F46; border-radius: 3px; }
+        }
+    </style>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+        .monaco-editor { font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.6; }
+        .tab-active { border-bottom: 2px solid #6366F1; color: #E5E7EB; }
+        .section-item.active { background: rgba(99, 102, 241, 0.15); border-left: 3px solid #6366F1; }
+        .tool-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .nav-item.active-nav { background: rgba(99, 102, 241, 0.15); color: #E5E7EB; border-left: 2px solid #6366F1; }
+        .res-tab { position: relative; padding: 8px 12px; font-size: 12px; color: #9CA3AF; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid transparent; white-space: nowrap; }
+        .res-tab:hover { color: #E5E7EB; }
+        .res-tab.active { color: #E5E7EB; border-bottom-color: #6366F1; }
+        .path-glob-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background: rgba(59, 130, 246, 0.15); color: #3B82F6; border-radius: 4px; font-size: 11px; font-family: 'Consolas', monospace; }
+        .hook-card { border: 1px solid #2F353D; border-radius: 8px; padding: 12px; background: #22262B; transition: all 0.2s; }
+        .hook-card:hover { border-color: #6366F1; }
+        .skill-card { border: 1px solid #2F353D; border-radius: 8px; padding: 14px; background: #22262B; transition: all 0.2s; cursor: pointer; }
+        .skill-card:hover { border-color: #6366F1; transform: translateY(-1px); }
+
+        /* Workflow demo */
+        .workflow-step { opacity: 0.3; transition: all 0.5s ease; }
+        .workflow-step.active { opacity: 1; }
+        .workflow-step.done .step-icon { background: #22C55E !important; animation: checkmark 0.4s ease-out; }
+        .workflow-connector { position: relative; overflow: hidden; }
+        .workflow-connector::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, #6366F1, transparent); animation: flow 1.5s ease-in-out infinite; display: none; }
+        .workflow-connector.flowing::after { display: block; }
+    </style>
+</head>
+<body class="bg-bg text-text h-screen overflow-hidden">
+    <div class="flex h-full">
+        <!-- Sidebar -->
+        <aside class="w-60 bg-sidebar border-r border-border flex flex-col flex-shrink-0">
+            <div class="p-4 border-b border-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                        <i class="fas fa-cube text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-sm">DotAgent</div>
+                        <div class="text-xs text-text-muted">v0.1.0 Preview</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Workflow Demo Toggle -->
+            <div class="px-3 pt-3">
+                <button id="workflow-demo-btn" class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-primary hover:from-indigo-500/30 hover:to-purple-500/30 rounded-lg text-sm font-medium transition-colors">
+                    <i class="fas fa-play-circle"></i>
+                    演示工作流
+                </button>
+            </div>
+
+            <nav class="flex-1 p-3 space-y-1 mt-2">
+                <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-card/50 hover:text-text cursor-pointer transition-colors" data-page="dashboard">
+                    <i class="fas fa-th-large w-4"></i>
+                    <span class="text-sm">仪表盘</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/15 text-text border-l-2 border-primary cursor-pointer" data-page="global">
+                    <i class="fas fa-globe w-4"></i>
+                    <span class="text-sm">全局配置</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-card/50 hover:text-text cursor-pointer transition-colors" data-page="project">
+                    <i class="fas fa-folder-open w-4"></i>
+                    <span class="text-sm">项目配置</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-card/50 hover:text-text cursor-pointer transition-colors" data-page="api">
+                    <i class="fas fa-key w-4"></i>
+                    <span class="text-sm">API 配置</span>
+                    <span class="ml-auto tool-badge bg-primary/20 text-primary text-[10px]">NEW</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-card/50 hover:text-text cursor-pointer transition-colors" data-page="snippets">
+                    <i class="fas fa-boxes-stacked w-4"></i>
+                    <span class="text-sm">片段库</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-card/50 hover:text-text cursor-pointer transition-colors" data-page="sync">
+                    <i class="fas fa-arrows-rotate w-4"></i>
+                    <span class="text-sm">同步中心</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-card/50 hover:text-text cursor-pointer transition-colors" data-page="workflow">
+                    <i class="fas fa-diagram-project w-4"></i>
+                    <span class="text-sm">工作流演示</span>
+                    <span class="ml-auto tool-badge bg-purple-500/20 text-purple-400 text-[10px]">DEMO</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-card/50 hover:text-text cursor-pointer transition-colors" data-page="settings">
+                    <i class="fas fa-cog w-4"></i>
+                    <span class="text-sm">设置</span>
+                </div>
+            </nav>
+
+            <div class="p-3 border-t border-border">
+                <button id="sync-all-btn" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-colors relative overflow-hidden">
+                    <i class="fas fa-sync-alt text-xs"></i>
+                    <span id="sync-all-text">一键同步所有工具</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <header class="h-12 border-b border-border bg-sidebar/50 flex items-center justify-between px-4 flex-shrink-0">
+                <div class="flex items-center gap-2">
+                    <div id="page-title" class="text-sm font-medium">全局配置</div>
+                    <div class="flex items-center gap-1 ml-4" id="sync-status">
+                        <span class="w-2 h-2 rounded-full bg-success"></span>
+                        <span class="text-xs text-text-muted">已同步 · 2分钟前</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button class="px-3 py-1.5 text-xs text-text-secondary hover:text-text hover:bg-card rounded-lg transition-colors">
+                        <i class="fas fa-question-circle mr-1"></i>
+                        帮助
+                    </button>
+                    <div class="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs text-primary font-medium">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </header>
+
+            <!-- ========== Global Config Page ========== -->
+            <div id="page-global" class="page-content flex-1 flex overflow-hidden">
+                <div class="w-64 border-r border-border flex flex-col flex-shrink-0">
+                    <div class="border-b border-border flex-shrink-0 overflow-x-auto scrollbar-thin">
+                        <div class="flex">
+                            <div class="res-tab active" data-res="instructions">
+                                <i class="fas fa-file-lines mr-1.5"></i>主指令
+                            </div>
+                            <div class="res-tab" data-res="rules">
+                                <i class="fas fa-list-check mr-1.5"></i>Rules
+                            </div>
+                            <div class="res-tab" data-res="settings">
+                                <i class="fas fa-sliders mr-1.5"></i>设置
+                            </div>
+                            <div class="res-tab" data-res="hooks">
+                                <i class="fas fa-plug mr-1.5"></i>Hooks
+                            </div>
+                            <div class="res-tab" data-res="skills">
+                                <i class="fas fa-wand-magic-sparkles mr-1.5"></i>Skills
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Instructions list -->
+                    <div id="res-list-instructions" class="flex-1 flex flex-col overflow-hidden">
+                        <div class="p-3 border-b border-border">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-medium text-text-secondary uppercase tracking-wider">配置分段</span>
+                                <button class="text-primary hover:text-primary-hover text-sm">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-xs"></i>
+                                <input type="text" placeholder="搜索分段..." class="w-full pl-8 pr-3 py-1.5 bg-card border border-border rounded-md text-sm placeholder-text-muted focus:outline-none focus:border-primary">
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
+                            <div class="section-item active flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer">
+                                <i class="fas fa-user-astronaut text-primary text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium truncate">AI 角色定义</div>
+                                    <div class="text-xs text-text-muted truncate">persona</div>
+                                </div>
+                                <span class="tool-badge bg-primary/20 text-primary">通用</span>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-code text-warning text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">TypeScript 编码规范</div>
+                                    <div class="text-xs text-text-muted truncate">typescript-rules</div>
+                                </div>
+                                <span class="tool-badge bg-warning/20 text-warning">前端</span>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-code-branch text-success text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">Git 提交规范</div>
+                                    <div class="text-xs text-text-muted truncate">git-commit</div>
+                                </div>
+                                <span class="tool-badge bg-primary/20 text-primary">通用</span>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-list-check text-info text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">开发工作流</div>
+                                    <div class="text-xs text-text-muted truncate">workflow</div>
+                                </div>
+                                <span class="tool-badge bg-primary/20 text-primary">通用</span>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-shield-halved text-error text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">安全规则</div>
+                                    <div class="text-xs text-text-muted truncate">security</div>
+                                </div>
+                                <span class="tool-badge bg-primary/20 text-primary">通用</span>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50 opacity-60">
+                                <i class="fas fa-code text-text-muted text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">Python 编码规范</div>
+                                    <div class="text-xs text-text-muted truncate">python-rules</div>
+                                </div>
+                                <i class="fas fa-toggle-off text-text-muted text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rules list -->
+                    <div id="res-list-rules" class="flex-1 flex flex-col overflow-hidden hidden">
+                        <div class="p-3 border-b border-border">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-medium text-text-secondary uppercase tracking-wider">路径规则</span>
+                                <button class="text-primary hover:text-primary-hover text-sm">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-xs"></i>
+                                <input type="text" placeholder="搜索规则..." class="w-full pl-8 pr-3 py-1.5 bg-card border border-border rounded-md text-sm placeholder-text-muted focus:outline-none focus:border-primary">
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
+                            <div class="section-item active flex items-start gap-2 px-3 py-2 rounded-md cursor-pointer">
+                                <i class="fas fa-robot text-primary text-xs mt-1"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium truncate">Python 规范</div>
+                                    <div class="text-xs text-text-muted mt-1">
+                                        <span class="path-glob-tag">**/*.py</span>
+                                    </div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm mt-1"></i>
+                            </div>
+                            <div class="section-item flex items-start gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-flask text-warning text-xs mt-1"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">测试规范</div>
+                                    <div class="text-xs text-text-muted mt-1">
+                                        <span class="path-glob-tag">**/*.test.*</span>
+                                        <span class="path-glob-tag">**/test/**</span>
+                                    </div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm mt-1"></i>
+                            </div>
+                            <div class="section-item flex items-start gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-mobile-screen text-info text-xs mt-1"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">React 组件规范</div>
+                                    <div class="text-xs text-text-muted mt-1">
+                                        <span class="path-glob-tag">**/*.tsx</span>
+                                        <span class="path-glob-tag">**/*.jsx</span>
+                                    </div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm mt-1"></i>
+                            </div>
+                            <div class="section-item flex items-start gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-database text-success text-xs mt-1"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">SQL 安全规范</div>
+                                    <div class="text-xs text-text-muted mt-1">
+                                        <span class="path-glob-tag">**/migrations/**</span>
+                                    </div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm mt-1"></i>
+                            </div>
+                            <div class="section-item flex items-start gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-weixin text-green-500 text-xs mt-1"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">微信小程序规范</div>
+                                    <div class="text-xs text-text-muted mt-1">
+                                        <span class="path-glob-tag">pages/**/*</span>
+                                    </div>
+                                </div>
+                                <i class="fas fa-toggle-off text-text-muted text-sm mt-1"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings list -->
+                    <div id="res-list-settings" class="flex-1 flex flex-col overflow-hidden hidden">
+                        <div class="p-3 border-b border-border">
+                            <span class="text-xs font-medium text-text-secondary uppercase tracking-wider">工具设置</span>
+                            <p class="text-xs text-text-muted mt-2">全局 settings.json 配置</p>
+                        </div>
+                        <div class="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
+                            <div class="section-item active flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer">
+                                <i class="fas fa-globe text-primary text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium truncate">环境变量</div>
+                                    <div class="text-xs text-text-muted truncate">envVars</div>
+                                </div>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-robot text-warning text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">默认模型</div>
+                                    <div class="text-xs text-text-muted truncate">Claude 3.7 Sonnet</div>
+                                </div>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-shield-halved text-success text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">权限模式</div>
+                                    <div class="text-xs text-text-muted truncate">default</div>
+                                </div>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-clock text-info text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">会话清理</div>
+                                    <div class="text-xs text-text-muted truncate">30天</div>
+                                </div>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-tools text-text-muted text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">工具权限</div>
+                                    <div class="text-xs text-text-muted truncate">允许所有工具</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hooks list -->
+                    <div id="res-list-hooks" class="flex-1 flex flex-col overflow-hidden hidden">
+                        <div class="p-3 border-b border-border">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-medium text-text-secondary uppercase tracking-wider">事件钩子</span>
+                                <button class="text-primary hover:text-primary-hover text-sm">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-xs"></i>
+                                <input type="text" placeholder="搜索Hook..." class="w-full pl-8 pr-3 py-1.5 bg-card border border-border rounded-md text-sm placeholder-text-muted focus:outline-none focus:border-primary">
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
+                            <div class="section-item active flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer">
+                                <i class="fas fa-magic text-success text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium truncate">自动格式化</div>
+                                    <div class="text-xs text-text-muted truncate">PostToolUse · Write</div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm"></i>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-triangle-exclamation text-error text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">危险操作拦截</div>
+                                    <div class="text-xs text-text-muted truncate">PreToolUse · Bash</div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm"></i>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-bell text-info text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">任务完成通知</div>
+                                    <div class="text-xs text-text-muted truncate">Stop</div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm"></i>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50 opacity-60">
+                                <i class="fas fa-clipboard-check text-warning text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">提交前 lint 检查</div>
+                                    <div class="text-xs text-text-muted truncate">PreToolUse · Git</div>
+                                </div>
+                                <i class="fas fa-toggle-off text-text-muted text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Skills list -->
+                    <div id="res-list-skills" class="flex-1 flex flex-col overflow-hidden hidden">
+                        <div class="p-3 border-b border-border">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-medium text-text-secondary uppercase tracking-wider">斜杠命令</span>
+                                <button class="text-primary hover:text-primary-hover text-sm">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-xs"></i>
+                                <input type="text" placeholder="搜索Skill..." class="w-full pl-8 pr-3 py-1.5 bg-card border border-border rounded-md text-sm placeholder-text-muted focus:outline-none focus:border-primary">
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
+                            <div class="section-item active flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer">
+                                <i class="fas fa-code-review text-primary text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium truncate">/review-pr</div>
+                                    <div class="text-xs text-text-muted truncate">代码审查</div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm"></i>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-rocket text-warning text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">/deploy-staging</div>
+                                    <div class="text-xs text-text-muted truncate">部署预发布环境</div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm"></i>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-file-code text-success text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">/generate-docs</div>
+                                    <div class="text-xs text-text-muted truncate">生成文档</div>
+                                </div>
+                                <i class="fas fa-toggle-on text-success text-sm"></i>
+                            </div>
+                            <div class="section-item flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-card/50">
+                                <i class="fas fa-weixin text-green-500 text-xs"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm truncate">/miniprogram-new-page</div>
+                                    <div class="text-xs text-text-muted truncate">新建小程序页面</div>
+                                </div>
+                                <i class="fas fa-toggle-off text-text-muted text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col overflow-hidden">
+                    <div class="h-11 border-b border-border flex items-center justify-between px-4 flex-shrink-0">
+                        <div class="flex items-center gap-3">
+                            <span id="editor-title" class="text-sm font-medium">AI 角色定义</span>
+                            <span id="editor-subtitle" class="text-xs text-text-muted font-mono">persona</span>
+                            <div class="h-4 w-px bg-border"></div>
+                            <span class="tool-badge bg-primary/20 text-primary">所有工具</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1.5 px-2 py-1 bg-card rounded-md">
+                                <i class="fas fa-grip-vertical text-text-muted text-xs"></i>
+                                <input type="number" value="10" class="w-10 bg-transparent text-xs text-center focus:outline-none">
+                            </div>
+                            <div class="flex items-center gap-1.5 px-2 py-1 bg-card rounded-md cursor-pointer hover:bg-border transition-colors">
+                                <i class="fas fa-toggle-on text-success text-sm"></i>
+                                <span class="text-xs text-success">已启用</span>
+                            </div>
+                            <button class="p-1.5 text-text-secondary hover:text-text hover:bg-card rounded-md transition-colors">
+                                <i class="fas fa-ellipsis-h text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 flex overflow-hidden">
+                        <!-- Instruction Editor -->
+                        <div id="editor-instructions" class="flex-1 flex flex-col min-w-0">
+                            <div class="flex-1 bg-card overflow-y-auto scrollbar-thin p-4">
+                                <div class="monaco-editor text-text">
+                                    <div class="text-text-muted"># AI 角色与身份定义</div>
+                                    <div>&nbsp;</div>
+                                    <div>你是一位资深的全栈开发工程师，拥有10年以上的软件开发经验。</div>
+                                    <div>&nbsp;</div>
+                                    <div class="text-primary">## 核心原则</div>
+                                    <div>&nbsp;</div>
+                                    <div>- <span class="text-warning">**清晰优先**</span>：代码首先是写给人看的，其次才是给机器执行</div>
+                                    <div>- <span class="text-warning">**简单直接**</span>：用最直接的方式解决问题，避免过度设计</div>
+                                    <div>- <span class="text-warning">**安全可靠**</span>：始终考虑边界情况和错误处理</div>
+                                    <div>&nbsp;</div>
+                                    <div class="text-primary">## 沟通风格</div>
+                                    <div>&nbsp;</div>
+                                    <div>- 给出建议时，先解释<em>为什么</em>，再给出具体方案</div>
+                                    <div>- 发现潜在问题时主动指出，不要假设我已经考虑到</div>
+                                    <div>- 当有多种方案时，列出各方案的利弊和推荐选择</div>
+                                </div>
+                            </div>
+                            <div class="h-7 border-t border-border bg-sidebar/50 flex items-center px-4 text-xs text-text-muted flex-shrink-0">
+                                <span>Markdown</span>
+                                <span class="mx-2">|</span>
+                                <span>UTF-8</span>
+                                <span class="mx-2">|</span>
+                                <span id="editor-lines">18 行</span>
+                                <div class="flex-1"></div>
+                                <i class="fas fa-check text-success mr-1"></i>
+                                <span class="text-success">已保存</span>
+                            </div>
+                        </div>
+
+                        <!-- Rule Editor -->
+                        <div id="editor-rules" class="flex-1 flex flex-col min-w-0 hidden">
+                            <div class="flex-1 bg-card overflow-y-auto scrollbar-thin p-4">
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="text-xs font-medium text-text-secondary mb-2 block">规则描述</label>
+                                    <input type="text" value="Python 编码规范，针对Python文件时生效" class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-medium text-text-secondary mb-2 block">路径匹配 Glob</label>
+                                    <div class="flex flex-wrap gap-1.5 mb-2">
+                                        <span class="path-glob-tag">**/*.py <i class="fas fa-times cursor-pointer hover:text-error"></i></span>
+                                        <span class="path-glob-tag">**/*.pyi <i class="fas fa-times cursor-pointer hover:text-error"></i></span>
+                                        <button class="px-2 py-0.5 bg-border rounded text-xs text-text-secondary hover:text-text transition-colors">
+                                            <i class="fas fa-plus mr-1"></i>添加
+                                        </button>
+                                    </div>
+                                    <p class="text-xs text-text-muted">匹配这些路径的文件编辑时自动加载本规则</p>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-medium text-text-secondary mb-2 block">自动加载</label>
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-sidebar border border-border rounded-md cursor-pointer">
+                                            <i class="fas fa-toggle-on text-success text-sm"></i>
+                                            <span class="text-xs text-text">匹配路径时自动加载</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-medium text-text-secondary mb-2 block">规则内容</label>
+                                    <div class="monaco-editor text-text bg-sidebar p-3 rounded-lg border border-border">
+                                        <div class="text-text-muted"># Python 编码规范</div>
+                                        <div>&nbsp;</div>
+                                        <div>- 遵循 PEP 8 风格指南</div>
+                                        <div>- 使用 type hints 类型注解</div>
+                                        <div>- 函数/类必须有 docstring</div>
+                                        <div>- 使用 f-string 格式化字符串</div>
+                                        <div class="mt-2 text-text-muted text-xs"># 推荐使用...</div>
+                                    </div>
+                                </div>
+                            </div>
+                            </div>
+                            <div class="h-7 border-t border-border bg-sidebar/50 flex items-center px-4 text-xs text-text-muted flex-shrink-0">
+                                <span>Rule · 路径规则</span>
+                                <span class="mx-2">|</span>
+                                <span>输出到 rules/python.md</span>
+                                <div class="flex-1"></div>
+                                <i class="fas fa-check text-success mr-1"></i>
+                                <span class="text-success">已保存</span>
+                            </div>
+                        </div>
+
+                        <!-- Settings Editor -->
+                        <div id="editor-settings" class="flex-1 flex flex-col min-w-0 hidden">
+                            <div class="flex-1 bg-card overflow-y-auto scrollbar-thin p-4">
+                                <div class="space-y-5 max-w-2xl">
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">环境变量</label>
+                                        <div class="space-y-2">
+                                            <div class="flex gap-2">
+                                                <input type="text" value="ANTHROPIC_BASE_URL" class="flex-1 px-3 py-2 bg-sidebar border border-border rounded-md text-sm font-mono focus:outline-none focus:border-primary">
+                                                <input type="text" value="https://api.anthropic.com" class="flex-1 px-3 py-2 bg-sidebar border border-border rounded-md text-sm font-mono focus:outline-none focus:border-primary">
+                                                <button class="px-3 py-2 text-text-muted hover:text-error transition-colors">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <input type="text" value="EDITOR" class="flex-1 px-3 py-2 bg-sidebar border border-border rounded-md text-sm font-mono focus:outline-none focus:border-primary">
+                                                <input type="text" value="code" class="flex-1 px-3 py-2 bg-sidebar border border-border rounded-md text-sm font-mono focus:outline-none focus:border-primary">
+                                                <button class="px-3 py-2 text-text-muted hover:text-error transition-colors">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                            <button class="text-xs text-primary hover:text-primary-hover">
+                                                <i class="fas fa-plus mr-1"></i>添加环境变量
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">默认模型</label>
+                                        <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                            <option>Claude 3.7 Sonnet</option>
+                                            <option>Claude 3.5 Sonnet</option>
+                                            <option>Claude 3 Opus</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">权限模式</label>
+                                        <div class="grid grid-cols-3 gap-2">
+                                            <div class="p-3 bg-sidebar border border-primary rounded-lg cursor-pointer border-2">
+                                                <div class="text-sm font-medium text-text mb-1">Default</div>
+                                                <div class="text-xs text-text-muted">默认确认敏感操作</div>
+                                            </div>
+                                            <div class="p-3 bg-sidebar border border-border rounded-lg cursor-pointer hover:border-primary/50">
+                                                <div class="text-sm font-medium text-text mb-1">Accept Edits</div>
+                                                <div class="text-xs text-text-muted">自动接受编辑</div>
+                                            </div>
+                                            <div class="p-3 bg-sidebar border border-border rounded-lg cursor-pointer hover:border-primary/50 opacity-60">
+                                                <div class="text-sm font-medium text-text-secondary mb-1">Plan Mode</div>
+                                                <div class="text-xs text-text-muted">仅规划模式</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">会话清理周期</label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="number" value="30" class="w-20 px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary text-center">
+                                            <span class="text-sm text-text-secondary">天</span>
+                                        </div>
+                                        <p class="text-xs text-text-muted mt-1">自动清理超过此天数的会话记录</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="h-7 border-t border-border bg-sidebar/50 flex items-center px-4 text-xs text-text-muted flex-shrink-0">
+                                <span>settings.json</span>
+                                <span class="mx-2">|</span>
+                                <span>写入 ~/.claude/settings.json</span>
+                                <div class="flex-1"></div>
+                                <i class="fas fa-check text-success mr-1"></i>
+                                <span class="text-success">已保存</span>
+                            </div>
+                        </div>
+
+                        <!-- Hook Editor -->
+                        <div id="editor-hooks" class="flex-1 flex flex-col min-w-0 hidden">
+                            <div class="flex-1 bg-card overflow-y-auto scrollbar-thin p-4">
+                                <div class="space-y-5 max-w-2xl">
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">触发事件</label>
+                                        <div class="grid grid-cols-3 gap-2">
+                                            <div class="p-3 bg-sidebar border border-border rounded-lg cursor-pointer hover:border-primary/50">
+                                                <div class="text-sm font-medium text-text mb-1">SessionStart</div>
+                                                <div class="text-xs text-text-muted">会话开始时</div>
+                                            </div>
+                                            <div class="p-3 bg-sidebar border border-border rounded-lg cursor-pointer hover:border-primary/50">
+                                                <div class="text-sm font-medium text-text mb-1">PreToolUse</div>
+                                                <div class="text-xs text-text-muted">工具调用前</div>
+                                            </div>
+                                            <div class="p-3 bg-sidebar border border-primary rounded-lg cursor-pointer border-2">
+                                                <div class="text-sm font-medium text-text mb-1">PostToolUse</div>
+                                                <div class="text-xs text-text-muted">工具调用后</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">匹配工具（可选）</label>
+                                        <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                            <option>Write（文件写入）</option>
+                                            <option>Bash（命令执行）</option>
+                                            <option>所有工具</option>
+                                        </select>
+                                        <p class="text-xs text-text-muted mt-1">只在特定工具被调用时触发，留空表示所有工具</p>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">执行命令</label>
+                                        <div class="flex gap-2">
+                                            <select class="px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                                <option>prettier --write</option>
+                                                <option>eslint --fix</option>
+                                                <option>自定义脚本</option>
+                                            </select>
+                                            <input type="text" value="{file_path}" class="flex-1 px-3 py-2 bg-sidebar border border-border rounded-md text-sm font-mono focus:outline-none focus:border-primary">
+                                        </div>
+                                        <p class="text-xs text-text-muted mt-1">支持变量：{file_path}, {project_path}, {tool_name}</p>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">超时时间</label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="number" value="10" class="w-20 px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary text-center">
+                                            <span class="text-sm text-text-secondary">秒</span>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 bg-primary/10 rounded-lg border border-primary/30">
+                                        <div class="text-xs font-medium text-primary mb-2">
+                                            <i class="fas fa-lightbulb mr-1"></i>效果说明
+                                        </div>
+                                        <p class="text-xs text-text-secondary">每次文件写入操作完成后，自动运行 prettier 格式化该文件，保持代码风格一致</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="h-7 border-t border-border bg-sidebar/50 flex items-center px-4 text-xs text-text-muted flex-shrink-0">
+                                <span>Hook · PostToolUse</span>
+                                <span class="mx-2">|</span>
+                                <span>写入 settings.json</span>
+                                <div class="flex-1"></div>
+                                <i class="fas fa-check text-success mr-1"></i>
+                                <span class="text-success">已启用</span>
+                            </div>
+                        </div>
+
+                        <!-- Skill Editor -->
+                        <div id="editor-skills" class="flex-1 flex flex-col min-w-0 hidden">
+                            <div class="flex-1 bg-card overflow-y-auto scrollbar-thin p-4">
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-xs font-medium text-text-secondary mb-2 block">命令名称</label>
+                                            <div class="flex items-center">
+                                                <span class="px-3 py-2 bg-sidebar border border-r-0 border-border rounded-l-md text-sm text-text-muted">/</span>
+                                                <input type="text" value="review-pr" class="flex-1 px-3 py-2 bg-sidebar border border-border rounded-r-md text-sm font-mono focus:outline-none focus:border-primary">
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs font-medium text-text-secondary mb-2 block">显示说明</label>
+                                            <input type="text" value="代码审查 Pull Request" class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">SKILL.md 内容</label>
+                                        <div class="monaco-editor text-text bg-sidebar p-3 rounded-lg border border-border">
+                                            <div class="text-text-muted"># 代码审查</div>
+                                            <div>&nbsp;</div>
+                                            <div class="text-primary">## 任务说明</div>
+                                            <div>&nbsp;</div>
+                                            <div>对当前 PR 进行代码审查，检查以下方面：</div>
+                                            <div>&nbsp;</div>
+                                            <div class="text-primary">## 检查清单</div>
+                                            <div>&nbsp;</div>
+                                            <div>- 代码风格是否符合规范</div>
+                                            <div>- 是否有潜在的 bug</div>
+                                            <div>- 安全性检查</div>
+                                            <div class="text-text-muted text-xs mt-2">... (完整SKILL.md 内容)</div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-text-secondary mb-2 block">辅助文件</label>
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center gap-2 px-3 py-2 bg-sidebar border border-border rounded-md">
+                                                <i class="fas fa-file-lines text-text-muted"></i>
+                                                <span class="text-sm font-mono text-text-secondary">checklist.md</span>
+                                                <span class="text-xs text-text-muted ml-auto">1.2KB</span>
+                                                <button class="text-text-muted hover:text-error"><i class="fas fa-times"></i></button>
+                                            </div>
+                                            <button class="text-xs text-primary hover:text-primary-hover">
+                                                <i class="fas fa-plus mr-1"></i>添加辅助文件
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="h-7 border-t border-border bg-sidebar/50 flex items-center px-4 text-xs text-text-muted flex-shrink-0">
+                                <span>Skill · /review-pr</span>
+                                <span class="mx-2">|</span>
+                                <span>输出到 skills/review-pr/SKILL.md</span>
+                                <div class="flex-1"></div>
+                                <i class="fas fa-check text-success mr-1"></i>
+                                <span class="text-success">已保存</span>
+                            </div>
+                        </div>
+
+                        <!-- Preview Pane -->
+                        <div class="w-96 border-l border-border flex flex-col flex-shrink-0">
+                            <div class="h-9 border-b border-border flex items-center px-3 gap-1 flex-shrink-0 overflow-x-auto scrollbar-thin">
+                                <button class="preview-tab tab-active px-3 py-2 text-xs whitespace-nowrap" data-tool="claude">
+                                    <i class="fas fa-comment-dots mr-1"></i>Claude Code
+                                </button>
+                                <button class="preview-tab px-3 py-2 text-xs text-text-secondary whitespace-nowrap hover:text-text" data-tool="trae">
+                                    <i class="fas fa-terminal mr-1"></i>Trae
+                                </button>
+                                <button class="preview-tab px-3 py-2 text-xs text-text-secondary whitespace-nowrap hover:text-text" data-tool="codex">
+                                    <i class="fas fa-robot mr-1"></i>Codex
+                                </button>
+                                <button class="preview-tab px-3 py-2 text-xs text-text-secondary whitespace-nowrap hover:text-text" data-tool="workbuddy">
+                                    <i class="fas fa-handshake mr-1"></i>WorkBuddy
+                                </button>
+                            </div>
+                            <div class="flex-1 overflow-y-auto scrollbar-thin p-4">
+                                <div class="mb-3 flex items-center gap-2 text-xs text-text-muted">
+                                    <i class="fas fa-file-alt"></i>
+                                    <span id="preview-path">~/.claude/CLAUDE.md</span>
+                                    <span class="ml-auto px-1.5 py-0.5 bg-success/20 text-success rounded text-[10px]">已同步</span>
+                                </div>
+                                <div class="bg-sidebar/30 rounded-lg p-3 monaco-editor text-sm border border-border/50">
+                                    <div class="text-text-muted text-xs mb-3 pb-2 border-b border-border/50">
+                                        &lt;!-- Generated by DotAgent - Do not edit directly --&gt;
+                                    </div>
+                                    <div class="text-text-muted"># AI 角色与身份定义</div>
+                                    <div>&nbsp;</div>
+                                    <div>你是一位资深的全栈开发工程师...</div>
+                                    <div class="text-text-muted mt-3">## 核心原则</div>
+                                    <div>&nbsp;</div>
+                                    <div>- **清晰优先**：代码首先是写给人看的...</div>
+                                    <div>- **简单直接**：用最直接的方式解决问题...</div>
+                                    <div class="text-text-muted mt-3 text-xs">... (更多内容)</div>
+                                </div>
+                                <div class="mt-4 p-3 bg-card rounded-lg">
+                                    <div class="text-xs font-medium mb-2 flex items-center gap-2">
+                                        <i class="fas fa-info-circle text-primary"></i>
+                                        包含的分段
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>AI 角色定义</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>Git 提交规范</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>开发工作流</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>安全规则</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>3 个 Rules</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>3 个 Hooks</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>3 个 Skills</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== Project Config Page ========== -->
+            <div id="page-project" class="page-content flex-1 flex overflow-hidden hidden">
+                <div class="w-64 border-r border-border flex flex-col flex-shrink-0">
+                    <div class="p-3 border-b border-border">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-medium text-text-secondary uppercase tracking-wider">项目列表</span>
+                            <button class="text-primary hover:text-primary-hover text-sm" title="添加项目/初始化">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-xs"></i>
+                            <input type="text" placeholder="搜索项目..." class="w-full pl-8 pr-3 py-1.5 bg-card border border-border rounded-md text-sm placeholder-text-muted focus:outline-none focus:border-primary">
+                        </div>
+                    </div>
+                    <div class="p-3 border-b border-border">
+                        <button id="init-project-btn" class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-card border border-dashed border-border hover:border-primary hover:text-primary rounded-lg text-sm text-text-secondary transition-colors">
+                            <i class="fas fa-folder-plus"></i>
+                            agent-hub init (初始化新项目)
+                        </button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
+                        <div class="px-3 py-2 rounded-md bg-primary/15 border-l-2 border-primary cursor-pointer">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-folder-open text-primary text-xs"></i>
+                                <span class="text-sm font-medium">MMY-FrameMatrix</span>
+                            </div>
+                            <div class="text-xs text-text-muted mt-0.5 font-mono truncate">D:\GitWork\MMY-FrameMatrix</div>
+                            <div class="flex items-center gap-1 mt-1.5">
+                                <span class="tool-badge bg-orange-500/20 text-orange-400">Python</span>
+                                <span class="tool-badge bg-primary/20 text-primary">PySide6</span>
+                            </div>
+                        </div>
+                        <div class="px-3 py-2 rounded-md hover:bg-card/50 cursor-pointer">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-folder text-text-muted text-xs"></i>
+                                <span class="text-sm">DotAgent</span>
+                            </div>
+                            <div class="text-xs text-text-muted mt-0.5 font-mono truncate">C:\Users\EDY\Documents\AgentManager</div>
+                            <div class="flex items-center gap-1 mt-1.5">
+                                <span class="tool-badge bg-orange-500/20 text-orange-400">Rust</span>
+                                <span class="tool-badge bg-blue-500/20 text-blue-400">React</span>
+                            </div>
+                        </div>
+                        <div class="px-3 py-2 rounded-md hover:bg-card/50 cursor-pointer">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-folder text-text-muted text-xs"></i>
+                                <span class="text-sm">个人博客</span>
+                            </div>
+                            <div class="text-xs text-text-muted mt-0.5 font-mono truncate">D:\Projects\blog</div>
+                            <div class="flex items-center gap-1 mt-1.5">
+                                <span class="tool-badge bg-blue-500/20 text-blue-400">Next.js</span>
+                                <span class="tool-badge bg-cyan-500/20 text-cyan-400">Tailwind</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col overflow-hidden">
+                    <div class="h-11 border-b border-border flex items-center justify-between px-4 flex-shrink-0">
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm font-medium">MMY-FrameMatrix</span>
+                            <span class="text-xs text-text-muted font-mono">D:\GitWork\MMY-FrameMatrix</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button class="px-3 py-1.5 text-xs bg-card hover:bg-border text-text rounded-md transition-colors flex items-center gap-1.5">
+                                <i class="fas fa-rotate-left"></i>
+                                重置继承
+                            </button>
+                            <button class="px-3 py-1.5 text-xs bg-primary hover:bg-primary-hover text-white rounded-md transition-colors flex items-center gap-1.5">
+                                <i class="fas fa-sync-alt"></i>
+                                同步到此项目
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto scrollbar-thin p-5">
+                        <div class="mb-5 p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-start gap-3">
+                                <i class="fas fa-diagram-project text-primary mt-0.5"></i>
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium mb-1">继承关系</div>
+                                    <div class="text-xs text-text-secondary mb-2">本项目继承自全局配置，你可以覆盖或禁用特定分段，也可以添加项目专有规则。</div>
+                                    <div class="flex items-center gap-2 text-xs">
+                                        <span class="px-2 py-1 bg-sidebar rounded-md">
+                                            <i class="fas fa-globe mr-1 text-text-muted"></i>全局配置
+                                        </span>
+                                        <i class="fas fa-arrow-right text-text-muted"></i>
+                                        <span class="px-2 py-1 bg-primary/20 text-primary rounded-md">
+                                            <i class="fas fa-folder-open mr-1"></i>MMY-FrameMatrix
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-5 p-4 bg-card/50 rounded-lg border border-border/50">
+                            <div class="flex items-center gap-3">
+                                <input type="checkbox" id="project-api-override" class="rounded border-border bg-card text-primary focus:ring-primary focus:ring-offset-0 w-4 h-4">
+                                <label for="project-api-override" class="text-sm cursor-pointer flex-1">
+                                    <div>覆盖全局API配置</div>
+                                    <div class="text-xs text-text-muted mt-0.5">此项目使用独立的API Key和中转站（如工作项目用公司Key）</div>
+                                </label>
+                                <button class="px-3 py-1.5 text-xs bg-card hover:bg-border text-text-secondary rounded-md transition-colors" disabled>
+                                    <i class="fas fa-key mr-1"></i>配置项目API
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mb-6">
+                            <div class="text-xs font-medium text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <i class="fas fa-link"></i>
+                                继承自全局配置
+                            </div>
+                            <div class="space-y-2">
+                                <div class="p-3 bg-card rounded-lg border border-border flex items-center gap-3 opacity-70">
+                                    <div class="w-5 h-5 rounded bg-border flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-check text-text-muted text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm">AI 角色定义</div>
+                                        <div class="text-xs text-text-muted">继承自全局 · 无修改</div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button class="p-1.5 text-text-secondary hover:text-text hover:bg-border rounded transition-colors"><i class="fas fa-pen text-xs"></i></button>
+                                        <button class="p-1.5 text-text-secondary hover:text-error hover:bg-error/10 rounded transition-colors"><i class="fas fa-ban text-xs"></i></button>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-card rounded-lg border-l-2 border-warning border-y-border/50 border-r-border/50 border-t-border/50 flex items-center gap-3">
+                                    <div class="w-5 h-5 rounded bg-warning/20 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-pen text-warning text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm">开发工作流</div>
+                                        <div class="text-xs text-warning">已覆盖全局版本 · 添加了PySide6和Tauri相关规则</div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button class="p-1.5 text-text-secondary hover:text-text hover:bg-border rounded transition-colors"><i class="fas fa-pen text-xs"></i></button>
+                                        <button class="p-1.5 text-text-secondary hover:text-primary hover:bg-primary/10 rounded transition-colors" title="还原为全局版本"><i class="fas fa-rotate-left text-xs"></i></button>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-card rounded-lg border-l-2 border-error border-y-border/50 border-r-border/50 border-t-border/50 flex items-center gap-3 opacity-70">
+                                    <div class="w-5 h-5 rounded bg-error/20 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-ban text-error text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm line-through text-text-secondary">TypeScript 编码规范</div>
+                                        <div class="text-xs text-error">已禁用 · 此项目不使用TypeScript</div>
+                                    </div>
+                                    <button class="p-1.5 text-text-secondary hover:text-success hover:bg-success/10 rounded transition-colors"><i class="fas fa-check text-xs"></i></button>
+                                </div>
+                                <div class="p-3 bg-card rounded-lg border border-border flex items-center gap-3 opacity-70">
+                                    <div class="w-5 h-5 rounded bg-border flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-check text-text-muted text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm">Git 提交规范</div>
+                                        <div class="text-xs text-text-muted">继承自全局 · 无修改</div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button class="p-1.5 text-text-secondary hover:text-text hover:bg-border rounded transition-colors"><i class="fas fa-pen text-xs"></i></button>
+                                        <button class="p-1.5 text-text-secondary hover:text-error hover:bg-error/10 rounded transition-colors"><i class="fas fa-ban text-xs"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-6">
+                            <div class="text-xs font-medium text-text-secondary uppercase tracking-wider mb-3 flex items-center justify-between">
+                                <span class="flex items-center gap-2">
+                                    <i class="fas fa-folder"></i>
+                                    项目专有配置
+                                </span>
+                                <button class="text-primary hover:text-primary-hover normal-case tracking-normal text-xs">
+                                    <i class="fas fa-plus mr-1"></i>添加项目分段
+                                </button>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="p-3 bg-primary/5 rounded-lg border-l-2 border-primary border-y-border/50 border-r-border/50 flex items-center gap-3">
+                                    <div class="w-5 h-5 rounded bg-primary/20 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-star text-primary text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm">MMY 项目特定规范</div>
+                                        <div class="text-xs text-text-secondary">深色主题配色、PySide6/Pillow技术栈、帧预览工具规范</div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button class="p-1.5 text-text-secondary hover:text-text hover:bg-border rounded transition-colors"><i class="fas fa-pen text-xs"></i></button>
+                                        <button class="p-1.5 text-text-secondary hover:text-error hover:bg-error/10 rounded transition-colors"><i class="fas fa-trash text-xs"></i></button>
+                                    </div>
+                                </div>
+                                <button class="w-full p-4 border border-dashed border-border rounded-lg text-text-muted hover:text-text-secondary hover:border-border/80 transition-colors flex items-center justify-center gap-2 text-sm">
+                                    <i class="fas fa-plus"></i>
+                                    添加新的项目专有分段
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== API Config Page (NEW) ========== -->
+            <div id="page-api" class="page-content flex-1 overflow-y-auto scrollbar-thin p-6 hidden">
+                <div class="max-w-5xl mx-auto">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="text-lg font-semibold flex items-center gap-2">
+                                <i class="fas fa-key text-primary"></i>
+                                API 配置中心
+                            </h2>
+                            <p class="text-sm text-text-secondary mt-1">统一管理各AI工具的API Key和中转站配置，一处配置自动同步</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="test-all-api-btn" class="px-3 py-2 bg-card hover:bg-border text-text rounded-lg text-sm transition-colors flex items-center gap-2">
+                                <i class="fas fa-plug"></i>
+                                测试所有连接
+                            </button>
+                            <button id="apply-api-btn" class="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                                <i class="fas fa-paper-plane"></i>
+                                应用配置到所有工具
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- API Profiles Section -->
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-medium text-text-secondary uppercase tracking-wider flex items-center gap-2">
+                                <i class="fas fa-server"></i>
+                                API 方案列表
+                            </h3>
+                            <button class="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white rounded-md text-xs flex items-center gap-1.5 transition-colors">
+                                <i class="fas fa-plus"></i>添加 API 方案
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4">
+                            <!-- Official Anthropic -->
+                            <div class="p-4 bg-card rounded-lg border-2 border-success/30 cursor-pointer group hover:border-success/50 transition-colors">
+                                <div class="flex items-start gap-3 mb-3">
+                                    <div class="w-9 h-9 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-comment-dots text-orange-400"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="font-medium truncate">官方 Anthropic</span>
+                                            <span class="tool-badge bg-success/20 text-success text-[10px]">默认</span>
+                                        </div>
+                                        <div class="flex items-center gap-1">
+                                            <span class="tool-badge bg-card border border-border text-text-secondary text-[10px]">official</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-xs text-text-secondary space-y-1 mb-3">
+                                    <div class="truncate"><i class="fas fa-link mr-1.5 text-text-muted w-3"></i><span class="font-mono">https://api.anthropic.com</span></div>
+                                    <div><i class="fas fa-robot mr-1.5 text-text-muted w-3"></i>Claude 3.7, 3.5 Haiku, Opus</div>
+                                </div>
+                                <div class="flex items-center justify-between pt-3 border-t border-border/50">
+                                    <span class="flex items-center gap-1 text-xs text-success"><i class="fas fa-check-circle"></i>120ms</span>
+                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button class="p-1.5 text-text-muted hover:text-text hover:bg-border rounded transition-colors" title="测试连接"><i class="fas fa-plug text-xs"></i></button>
+                                        <button class="p-1.5 text-text-muted hover:text-primary hover:bg-primary/10 rounded transition-colors" title="编辑"><i class="fas fa-pen text-xs"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Proxy A -->
+                            <div class="p-4 bg-card rounded-lg border border-border cursor-pointer group hover:border-primary/50 transition-colors">
+                                <div class="flex items-start gap-3 mb-3">
+                                    <div class="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-network-wired text-purple-400"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="font-medium truncate">高速中转站 A</span>
+                                        </div>
+                                        <div class="flex items-center gap-1">
+                                            <span class="tool-badge bg-purple-500/20 text-purple-400 text-[10px]">proxy</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-xs text-text-secondary space-y-1 mb-3">
+                                    <div class="truncate"><i class="fas fa-link mr-1.5 text-text-muted w-3"></i><span class="font-mono">https://api.example-proxy.com/v1</span></div>
+                                    <div><i class="fas fa-robot mr-1.5 text-text-muted w-3"></i>Claude, GPT-4o, DeepSeek, Doubao</div>
+                                </div>
+                                <div class="flex items-center justify-between pt-3 border-t border-border/50">
+                                    <span class="flex items-center gap-1 text-xs text-success"><i class="fas fa-check-circle"></i>45ms</span>
+                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button class="p-1.5 text-text-muted hover:text-text hover:bg-border rounded transition-colors" title="测试连接"><i class="fas fa-plug text-xs"></i></button>
+                                        <button class="p-1.5 text-text-muted hover:text-primary hover:bg-primary/10 rounded transition-colors" title="编辑"><i class="fas fa-pen text-xs"></i></button>
+                                        <button class="p-1.5 text-text-muted hover:text-warning hover:bg-warning/10 rounded transition-colors" title="设为默认"><i class="far fa-star text-xs"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Add new card -->
+                            <button class="p-4 bg-card/30 border border-dashed border-border rounded-lg text-text-muted hover:text-text-secondary hover:border-primary/50 transition-colors flex flex-col items-center justify-center gap-2 text-sm min-h-[160px] group">
+                                <div class="w-9 h-9 rounded-full bg-border/50 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                                    <i class="fas fa-plus group-hover:text-primary transition-colors"></i>
+                                </div>
+                                <span class="text-xs text-center leading-relaxed">添加新的API方案<br><span class="text-text-muted">官方/中转站/OpenAI兼容</span></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tool-API Mapping Section -->
+                    <div class="mb-8">
+                        <h3 class="text-sm font-medium text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <i class="fas fa-plug"></i>
+                            工具 - API 映射配置
+                        </h3>
+
+                        <div class="bg-card rounded-lg border border-border overflow-hidden">
+                            <div class="grid grid-cols-12 gap-4 p-3 border-b border-border bg-sidebar/30 text-xs font-medium text-text-secondary">
+                                <div class="col-span-3">工具</div>
+                                <div class="col-span-4">API 方案</div>
+                                <div class="col-span-3">模型</div>
+                                <div class="col-span-2 text-right">状态</div>
+                            </div>
+
+                            <!-- Claude Code -->
+                            <div class="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
+                                <div class="col-span-3 flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded bg-orange-500/20 flex items-center justify-center">
+                                        <i class="fas fa-comment-dots text-orange-400 text-sm"></i>
+                                    </div>
+                                    <span class="text-sm font-medium">Claude Code</span>
+                                </div>
+                                <div class="col-span-4">
+                                    <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                        <option selected>高速中转站 A</option>
+                                        <option>官方 Anthropic</option>
+                                        <option>项目自定义</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-3">
+                                    <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                        <option>Claude 3.7 Sonnet</option>
+                                        <option selected>Claude 3.7 Opus</option>
+                                        <option>Claude 3.5 Haiku</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-2 text-right">
+                                    <span class="flex items-center justify-end gap-1.5 text-xs text-success">
+                                        <i class="fas fa-check-circle"></i>已写入
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Trae -->
+                            <div class="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
+                                <div class="col-span-3 flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center">
+                                        <i class="fas fa-terminal text-blue-400 text-sm"></i>
+                                    </div>
+                                    <span class="text-sm font-medium">Trae</span>
+                                </div>
+                                <div class="col-span-4">
+                                    <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                        <option>高速中转站 A</option>
+                                        <option selected>官方 Anthropic</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-3">
+                                    <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                        <option selected>使用默认 (Doubao-Pro)</option>
+                                        <option>Custom</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-2 text-right">
+                                    <span class="flex items-center justify-end gap-1.5 text-xs text-warning" title="请在Trae设置页确认，Key已复制到剪贴板">
+                                        <i class="fas fa-exclamation-triangle"></i>需手动粘贴
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Codex -->
+                            <div class="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
+                                <div class="col-span-3 flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded bg-green-500/20 flex items-center justify-center">
+                                        <i class="fas fa-robot text-green-400 text-sm"></i>
+                                    </div>
+                                    <span class="text-sm font-medium">Codex (OpenAI)</span>
+                                </div>
+                                <div class="col-span-4">
+                                    <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                        <option selected>高速中转站 A</option>
+                                        <option>官方 OpenAI</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-3">
+                                    <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                        <option selected>GPT-4o</option>
+                                        <option>o3-mini</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-2 text-right">
+                                    <span class="flex items-center justify-end gap-1.5 text-xs text-success">
+                                        <i class="fas fa-check-circle"></i>已写入
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- WorkBuddy -->
+                            <div class="grid grid-cols-12 gap-4 p-4 items-center">
+                                <div class="col-span-3 flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded bg-purple-500/20 flex items-center justify-center">
+                                        <i class="fas fa-handshake text-purple-400 text-sm"></i>
+                                    </div>
+                                    <span class="text-sm font-medium">WorkBuddy</span>
+                                </div>
+                                <div class="col-span-4">
+                                    <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                        <option selected>高速中转站 A</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-3">
+                                    <select class="w-full px-3 py-2 bg-sidebar border border-border rounded-md text-sm focus:outline-none focus:border-primary">
+                                        <option selected>使用默认</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-2 text-right">
+                                    <span class="flex items-center justify-end gap-1.5 text-xs text-success">
+                                        <i class="fas fa-check-circle"></i>已写入
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Security Note -->
+                    <div class="p-4 bg-primary/5 border border-primary/20 rounded-lg flex items-start gap-3">
+                        <i class="fas fa-shield-alt text-primary mt-0.5"></i>
+                        <div>
+                            <div class="text-sm font-medium text-primary mb-1">安全提示</div>
+                            <div class="text-xs text-text-secondary">
+                                API Key 存储在系统密钥环（Windows Credential Manager / macOS Keychain）中，不会明文存储在配置文件中。界面上Key已脱敏显示。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== Workflow Demo Page (NEW) ========== -->
+            <div id="page-workflow" class="page-content flex-1 overflow-y-auto scrollbar-thin p-6 hidden">
+                <div class="max-w-4xl mx-auto">
+                    <div class="text-center mb-8">
+                        <h2 class="text-lg font-semibold flex items-center justify-center gap-2 mb-2">
+                            <i class="fas fa-diagram-project text-primary"></i>
+                            日常使用工作流演示
+                        </h2>
+                        <p class="text-sm text-text-secondary">看看 DotAgent 如何帮你轻松管理多个AI工具的配置</p>
+                        <button id="play-workflow-btn" class="mt-4 px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 mx-auto">
+                            <i class="fas fa-play"></i>
+                            开始演示
+                        </button>
+                    </div>
+
+                    <div class="relative">
+                        <!-- Workflow Steps -->
+                        <div class="space-y-0" id="workflow-steps">
+                            <!-- Step 1 -->
+                            <div class="workflow-step flex items-start gap-4 p-4" id="wstep-1">
+                                <div class="flex flex-col items-center">
+                                    <div class="step-icon w-10 h-10 rounded-full bg-border flex items-center justify-center flex-shrink-0 text-text-muted">
+                                        <i class="fas fa-folder-plus"></i>
+                                    </div>
+                                    <div class="workflow-connector w-0.5 h-16 bg-border mt-2"></div>
+                                </div>
+                                <div class="flex-1 pt-1">
+                                    <div class="text-sm font-medium mb-1">步骤 1: 创建/克隆项目</div>
+                                    <div class="text-xs text-text-secondary mb-2">你用任意方式创建项目（git clone、手动新建等），不需要从本工具创建</div>
+                                    <div class="bg-card rounded-lg p-3 border border-border font-mono text-xs">
+                                        <div class="text-text-muted">$ git clone https://github.com/your/project.git</div>
+                                        <div class="text-text-muted">$ cd my-new-project</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 2 -->
+                            <div class="workflow-step flex items-start gap-4 p-4" id="wstep-2">
+                                <div class="flex flex-col items-center">
+                                    <div class="step-icon w-10 h-10 rounded-full bg-border flex items-center justify-center flex-shrink-0 text-text-muted">
+                                        <i class="fas fa-terminal"></i>
+                                    </div>
+                                    <div class="workflow-connector w-0.5 h-16 bg-border mt-2"></div>
+                                </div>
+                                <div class="flex-1 pt-1">
+                                    <div class="text-sm font-medium mb-1">步骤 2: 初始化项目配置</div>
+                                    <div class="text-xs text-text-secondary mb-2">在项目目录执行 <code class="text-primary bg-primary/10 px-1 rounded">agent-hub init</code>，工具自动扫描现有配置、识别技术栈</div>
+                                    <div class="bg-card rounded-lg p-3 border border-border font-mono text-xs space-y-1">
+                                        <div class="text-success">$ agent-hub init</div>
+                                        <div class="text-text-secondary">✓ 检测到现有配置: CLAUDE.md, AGENTS.md</div>
+                                        <div class="text-text-secondary">✓ 识别技术栈: React + TypeScript + Vite</div>
+                                        <div class="text-text-secondary">✓ 推荐模板: React/TS规范、Git规范</div>
+                                        <div class="text-text-secondary">✓ 项目配置已创建</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 3 -->
+                            <div class="workflow-step flex items-start gap-4 p-4" id="wstep-3">
+                                <div class="flex flex-col items-center">
+                                    <div class="step-icon w-10 h-10 rounded-full bg-border flex items-center justify-center flex-shrink-0 text-text-muted">
+                                        <i class="fas fa-sliders"></i>
+                                    </div>
+                                    <div class="workflow-connector w-0.5 h-16 bg-border mt-2"></div>
+                                </div>
+                                <div class="flex-1 pt-1">
+                                    <div class="text-sm font-medium mb-1">步骤 3: 调整配置（可选）</div>
+                                    <div class="text-xs text-text-secondary mb-2">打开GUI，按需覆盖/禁用某些分段，添加项目特有规则，选择要用哪些工具</div>
+                                    <div class="bg-card rounded-lg p-3 border border-border">
+                                        <div class="flex flex-wrap gap-2 text-xs">
+                                            <span class="px-2 py-1 bg-success/20 text-success rounded">✓ 继承：AI角色定义</span>
+                                            <span class="px-2 py-1 bg-success/20 text-success rounded">✓ 继承：Git规范</span>
+                                            <span class="px-2 py-1 bg-warning/20 text-warning rounded">✏ 覆盖：开发工作流</span>
+                                            <span class="px-2 py-1 bg-error/20 text-error rounded">🚫 禁用：Python规范</span>
+                                            <span class="px-2 py-1 bg-primary/20 text-primary rounded">⭐ 添加：项目架构说明</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 4 -->
+                            <div class="workflow-step flex items-start gap-4 p-4" id="wstep-4">
+                                <div class="flex flex-col items-center">
+                                    <div class="step-icon w-10 h-10 rounded-full bg-border flex items-center justify-center flex-shrink-0 text-text-muted">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </div>
+                                    <div class="workflow-connector w-0.5 h-16 bg-border mt-2"></div>
+                                </div>
+                                <div class="flex-1 pt-1">
+                                    <div class="text-sm font-medium mb-1">步骤 4: 一键同步</div>
+                                    <div class="text-xs text-text-secondary mb-2">点击同步，自动在项目目录生成各工具的配置文件（含指令配置和API配置）</div>
+                                    <div class="bg-card rounded-lg p-3 border border-border space-y-2">
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>生成 CLAUDE.md</span>
+                                            <span class="text-text-muted ml-auto font-mono">→ Claude Code 可识别</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>生成 AGENTS.md</span>
+                                            <span class="text-text-muted ml-auto font-mono">→ Trae 可识别</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>生成 CODEX.md</span>
+                                            <span class="text-text-muted ml-auto font-mono">→ Codex 可识别</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>生成 WORKBUDDY.md</span>
+                                            <span class="text-text-muted ml-auto font-mono">→ WorkBuddy 可识别</span>
+                                        </div>
+                                        <div class="border-t border-border pt-2 mt-2 flex items-center gap-2 text-xs">
+                                            <i class="fas fa-check text-success"></i>
+                                            <span>API配置已同步到所有工具</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 5 -->
+                            <div class="workflow-step flex items-start gap-4 p-4" id="wstep-5">
+                                <div class="flex flex-col items-center">
+                                    <div class="step-icon w-10 h-10 rounded-full bg-border flex items-center justify-center flex-shrink-0 text-text-muted">
+                                        <i class="fas fa-code"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-1 pt-1">
+                                    <div class="text-sm font-medium mb-1">步骤 5: 用你喜欢的工具开发</div>
+                                    <div class="text-xs text-text-secondary mb-2">所有工具打开同一个项目文件夹，都能读到同一份规则！想用哪个用哪个！</div>
+                                    <div class="flex flex-wrap gap-3">
+                                        <div class="flex items-center gap-2 px-3 py-2 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                                            <i class="fas fa-comment-dots text-orange-400"></i>
+                                            <span class="text-sm">Claude Code</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                                            <i class="fas fa-terminal text-blue-400"></i>
+                                            <span class="text-sm">Trae</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 px-3 py-2 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                            <i class="fas fa-robot text-green-400"></i>
+                                            <span class="text-sm">Codex</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 px-3 py-2 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                                            <i class="fas fa-handshake text-purple-400"></i>
+                                            <span class="text-sm">WorkBuddy</span>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4 p-3 bg-success/10 border border-success/30 rounded-lg text-xs flex items-center gap-2">
+                                        <i class="fas fa-lightbulb text-success"></i>
+                                        <span>以后积累了新经验？改全局配置 → 一键同步 → 所有项目所有工具都更新了！</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== Dashboard Page ========== -->
+            <div id="page-dashboard" class="page-content flex-1 overflow-y-auto scrollbar-thin p-6 hidden">
+                <div class="max-w-5xl mx-auto">
+                    <h2 class="text-lg font-semibold mb-1">仪表盘</h2>
+                    <p class="text-sm text-text-secondary mb-6">欢迎回来，管理你的AI工具配置</p>
+
+                    <div class="grid grid-cols-4 gap-4 mb-6">
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-center justify-between mb-2">
+                                <i class="fas fa-globe text-primary"></i>
+                                <span class="text-xs text-success"><i class="fas fa-check-circle"></i> 已同步</span>
+                            </div>
+                            <div class="text-2xl font-semibold">7</div>
+                            <div class="text-xs text-text-muted">全局配置分段</div>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-center justify-between mb-2">
+                                <i class="fas fa-folder-open text-warning"></i>
+                                <span class="text-xs text-success"><i class="fas fa-check-circle"></i> 正常</span>
+                            </div>
+                            <div class="text-2xl font-semibold">3</div>
+                            <div class="text-xs text-text-muted">已管理项目</div>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-center justify-between mb-2">
+                                <i class="fas fa-key text-purple-400"></i>
+                                <span class="text-xs text-success"><i class="fas fa-check-circle"></i> 已配置</span>
+                            </div>
+                            <div class="text-2xl font-semibold">2</div>
+                            <div class="text-xs text-text-muted">API方案 (含1个中转站)</div>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-center justify-between mb-2">
+                                <i class="fas fa-tools text-info"></i>
+                                <span class="text-xs text-success">4/4 已启用</span>
+                            </div>
+                            <div class="text-2xl font-semibold">4</div>
+                            <div class="text-xs text-text-muted">AI工具已连接</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-6 mb-6">
+                        <div class="bg-card rounded-lg border border-border p-4">
+                            <h3 class="text-sm font-medium mb-3 flex items-center gap-2">
+                                <i class="fas fa-bolt text-primary"></i>
+                                快速操作
+                            </h3>
+                            <div class="space-y-2">
+                                <button class="w-full p-3 bg-sidebar rounded-lg hover:bg-border transition-colors flex items-center gap-3 text-left">
+                                    <div class="w-8 h-8 rounded bg-primary/20 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-folder-plus text-primary text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm">初始化新项目</div>
+                                        <div class="text-xs text-text-muted">agent-hub init · 扫描检测现有配置并接入</div>
+                                    </div>
+                                </button>
+                                <button class="w-full p-3 bg-sidebar rounded-lg hover:bg-border transition-colors flex items-center gap-3 text-left" onclick="switchPage('api')">
+                                    <div class="w-8 h-8 rounded bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-key text-purple-400 text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm">API配置中心</div>
+                                        <div class="text-xs text-text-muted">统一管理API Key和中转站</div>
+                                    </div>
+                                </button>
+                                <button class="w-full p-3 bg-sidebar rounded-lg hover:bg-border transition-colors flex items-center gap-3 text-left" onclick="switchPage('sync')">
+                                    <div class="w-8 h-8 rounded bg-success/20 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-sync-alt text-success text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm">同步所有配置</div>
+                                        <div class="text-xs text-text-muted">一键同步到所有已启用的AI工具</div>
+                                    </div>
+                                </button>
+                                <button class="w-full p-3 bg-sidebar rounded-lg hover:bg-border transition-colors flex items-center gap-3 text-left" onclick="switchPage('workflow')">
+                                    <div class="w-8 h-8 rounded bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-play-circle text-indigo-400 text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm">查看工作流演示</div>
+                                        <div class="text-xs text-text-muted">了解日常如何使用本工具</div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="bg-card rounded-lg border border-border p-4">
+                            <h3 class="text-sm font-medium mb-3 flex items-center gap-2">
+                                <i class="fas fa-history text-text-secondary"></i>
+                                最近同步记录
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="flex items-start gap-3 pb-3 border-b border-border/50">
+                                    <i class="fas fa-check-circle text-success mt-0.5"></i>
+                                    <div class="flex-1">
+                                        <div class="text-sm">全局配置同步完成</div>
+                                        <div class="text-xs text-text-muted">Claude Code, Trae, Codex, WorkBuddy · 2分钟前</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-3 pb-3 border-b border-border/50">
+                                    <i class="fas fa-check-circle text-success mt-0.5"></i>
+                                    <div class="flex-1">
+                                        <div class="text-sm">API配置已应用</div>
+                                        <div class="text-xs text-text-muted">高速中转站A → 所有工具 · 10分钟前</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-3">
+                                    <i class="fas fa-exclamation-triangle text-warning mt-0.5"></i>
+                                    <div class="flex-1">
+                                        <div class="text-sm">Codex配置被外部修改</div>
+                                        <div class="text-xs text-text-muted">检测到差异，点击查看 · 1小时前</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== Snippets Page (simplified) ========== -->
+            <div id="page-snippets" class="page-content flex-1 overflow-y-auto scrollbar-thin p-6 hidden">
+                <div class="max-w-5xl mx-auto">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="text-lg font-semibold mb-1">片段库</h2>
+                            <p class="text-sm text-text-secondary">可复用的配置片段模板，一键应用到全局或项目</p>
+                        </div>
+                        <button class="px-3 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                            <i class="fas fa-plus"></i>新建片段
+                        </button>
+                    </div>
+                    <div class="flex gap-2 mb-6 border-b border-border">
+                        <button class="px-4 py-2 text-sm border-b-2 border-primary text-text -mb-px">全部</button>
+                        <button class="px-4 py-2 text-sm text-text-secondary hover:text-text transition-colors">技术栈</button>
+                        <button class="px-4 py-2 text-sm text-text-secondary hover:text-text transition-colors">工作流</button>
+                        <button class="px-4 py-2 text-sm text-text-secondary hover:text-text transition-colors">Hooks 模板</button>
+                        <button class="px-4 py-2 text-sm text-text-secondary hover:text-text transition-colors">微信生态</button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fab fa-python text-blue-400 text-xl"></i>
+                                <span class="font-medium">Python 项目规范</span>
+                            </div>
+                            <p class="text-xs text-text-secondary mb-3">PEP8规范、类型提示、虚拟环境、测试要求 + Python规则Rule</p>
+                            <div class="flex items-center gap-1 mb-3">
+                                <span class="tool-badge bg-primary/10 text-primary text-[10px]">Instruction</span>
+                                <span class="tool-badge bg-info/10 text-info text-[10px]">Rule</span>
+                            </div>
+                            <button class="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity">应用 →</button>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fab fa-react text-cyan-400 text-xl"></i>
+                                <span class="font-medium">React/TypeScript</span>
+                            </div>
+                            <p class="text-xs text-text-secondary mb-3">组件规范、Hooks用法、状态管理、TS类型优先 + React组件Rule</p>
+                            <div class="flex items-center gap-1 mb-3">
+                                <span class="tool-badge bg-primary/10 text-primary text-[10px]">Instruction</span>
+                                <span class="tool-badge bg-info/10 text-info text-[10px]">Rule</span>
+                            </div>
+                            <button class="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity">应用 →</button>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fab fa-rust text-orange-400 text-xl"></i>
+                                <span class="font-medium">Rust 项目规范</span>
+                            </div>
+                            <p class="text-xs text-text-secondary mb-3">错误处理、unsafe规则、文档注释、Clippy + Rust Rule</p>
+                            <div class="flex items-center gap-1 mb-3">
+                                <span class="tool-badge bg-primary/10 text-primary text-[10px]">Instruction</span>
+                                <span class="tool-badge bg-info/10 text-info text-[10px]">Rule</span>
+                            </div>
+                            <button class="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity">应用 →</button>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fas fa-weixin text-green-500 text-xl"></i>
+                                <span class="font-medium">微信小程序</span>
+                            </div>
+                            <p class="text-xs text-text-secondary mb-3">框架约定、WXML/WXSS规范、wx API最佳实践、审核注意事项</p>
+                            <div class="flex items-center gap-1 mb-3">
+                                <span class="tool-badge bg-primary/10 text-primary text-[10px]">Instruction</span>
+                                <span class="tool-badge bg-info/10 text-info text-[10px]">Rule x5</span>
+                                <span class="tool-badge bg-warning/10 text-warning text-[10px]">Skill</span>
+                            </div>
+                            <button class="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity">应用 →</button>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fas fa-gamepad text-purple-400 text-xl"></i>
+                                <span class="font-medium">微信小游戏</span>
+                            </div>
+                            <p class="text-xs text-text-secondary mb-3">Canvas渲染、资源管理、性能优化、分包加载、API规范</p>
+                            <div class="flex items-center gap-1 mb-3">
+                                <span class="tool-badge bg-primary/10 text-primary text-[10px]">Instruction</span>
+                                <span class="tool-badge bg-info/10 text-info text-[10px]">Rule x3</span>
+                                <span class="tool-badge bg-warning/10 text-warning text-[10px]">Skill</span>
+                            </div>
+                            <button class="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity">应用 →</button>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fas fa-code-branch text-warning text-xl"></i>
+                                <span class="font-medium">Git 工作流</span>
+                            </div>
+                            <p class="text-xs text-text-secondary mb-3">Conventional Commits、分支命名、PR规范、提交前lint</p>
+                            <div class="flex items-center gap-1 mb-3">
+                                <span class="tool-badge bg-primary/10 text-primary text-[10px]">Instruction</span>
+                                <span class="tool-badge bg-success/10 text-success text-[10px]">Hook</span>
+                            </div>
+                            <button class="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity">应用 →</button>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fas fa-wand-magic-sparkles text-success text-xl"></i>
+                                <span class="font-medium">自动格式化 Hook</span>
+                            </div>
+                            <p class="text-xs text-text-secondary mb-3">文件写入后自动运行 prettier/eslint 格式化，保持代码风格一致</p>
+                            <div class="flex items-center gap-1 mb-3">
+                                <span class="tool-badge bg-success/10 text-success text-[10px]">Hook</span>
+                            </div>
+                            <button class="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity">应用 →</button>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fas fa-shield-halved text-error text-xl"></i>
+                                <span class="font-medium">危险操作拦截</span>
+                            </div>
+                            <p class="text-xs text-text-secondary mb-3">拦截 rm -rf、DROP TABLE、git push --force 等危险命令</p>
+                            <div class="flex items-center gap-1 mb-3">
+                                <span class="tool-badge bg-success/10 text-success text-[10px]">Hook</span>
+                            </div>
+                            <button class="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity">应用 →</button>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fas fa-user-astronaut text-primary text-xl"></i>
+                                <span class="font-medium">资深工程师角色</span>
+                            </div>
+                            <p class="text-xs text-text-secondary mb-3">AI 角色设定：10年经验、代码质量优先、先讲为什么再给方案</p>
+                            <div class="flex items-center gap-1 mb-3">
+                                <span class="tool-badge bg-primary/10 text-primary text-[10px]">Instruction</span>
+                            </div>
+                            <button class="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity">应用 →</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== Sync Center Page ========== -->
+            <div id="page-sync" class="page-content flex-1 overflow-y-auto scrollbar-thin p-6 hidden">
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="text-lg font-semibold">同步中心</h2>
+                            <p class="text-sm text-text-secondary mt-1">管理各AI工具的指令配置和API配置同步状态</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button class="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2" id="sync-btn">
+                                <i class="fas fa-sync-alt"></i>
+                                立即同步全部
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center">
+                                    <i class="fas fa-check-circle text-success"></i>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-semibold">4/4</div>
+                                    <div class="text-xs text-text-secondary">工具已同步</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                                    <i class="fas fa-key text-purple-400"></i>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-semibold">3/4</div>
+                                    <div class="text-xs text-text-secondary">API自动配置成功</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center">
+                                    <i class="fas fa-clock text-warning"></i>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-semibold">2 分钟前</div>
+                                    <div class="text-xs text-text-secondary">上次同步时间</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-start gap-4">
+                                <div class="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-comment-dots text-orange-400"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-medium">Claude Code</span>
+                                            <span class="tool-badge bg-success/20 text-success">已启用</span>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" checked class="sr-only peer">
+                                            <div class="w-9 h-5 bg-border rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                                        </label>
+                                    </div>
+                                    <div class="text-xs text-text-secondary mb-3">
+                                        <div class="flex items-center gap-4 mt-2 flex-wrap">
+                                            <span><i class="fas fa-file-alt mr-1 text-text-muted"></i>~/.claude/CLAUDE.md</span>
+                                            <span><i class="fas fa-folder mr-1 text-text-muted"></i>项目级 CLAUDE.md</span>
+                                            <span class="flex items-center gap-1"><i class="fas fa-key mr-1 text-success"></i><span class="text-success">API已配置</span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="p-2 text-text-secondary hover:text-text hover:bg-border rounded-lg transition-colors"><i class="fas fa-eye"></i></button>
+                                    <button class="p-2 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"><i class="fas fa-sync-alt"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-start gap-4">
+                                <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-terminal text-blue-400"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-medium">Trae</span>
+                                            <span class="tool-badge bg-success/20 text-success">已启用</span>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" checked class="sr-only peer">
+                                            <div class="w-9 h-5 bg-border rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                                        </label>
+                                    </div>
+                                    <div class="text-xs text-text-secondary mb-3">
+                                        <div class="flex items-center gap-4 mt-2 flex-wrap">
+                                            <span><i class="fas fa-file-alt mr-1 text-text-muted"></i>~/.trae/AGENTS_GLOBAL.md</span>
+                                            <span><i class="fas fa-folder mr-1 text-text-muted"></i>项目级 AGENTS.md</span>
+                                            <span class="flex items-center gap-1"><i class="fas fa-key mr-1 text-warning"></i><span class="text-warning">API需手动粘贴</span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="p-2 text-text-secondary hover:text-text hover:bg-border rounded-lg transition-colors"><i class="fas fa-eye"></i></button>
+                                    <button class="p-2 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"><i class="fas fa-sync-alt"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-start gap-4">
+                                <div class="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-robot text-green-400"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-medium">Codex</span>
+                                            <span class="tool-badge bg-success/20 text-success">已启用</span>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" checked class="sr-only peer">
+                                            <div class="w-9 h-5 bg-border rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                                        </label>
+                                    </div>
+                                    <div class="text-xs text-text-secondary mb-3">
+                                        <div class="flex items-center gap-4 mt-2 flex-wrap">
+                                            <span><i class="fas fa-file-alt mr-1 text-text-muted"></i>~/.codex/CODEX.md</span>
+                                            <span><i class="fas fa-folder mr-1 text-text-muted"></i>项目级 CODEX.md</span>
+                                            <span class="flex items-center gap-1"><i class="fas fa-key mr-1 text-success"></i><span class="text-success">API已配置</span></span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="flex items-center gap-1 text-xs text-warning">
+                                            <i class="fas fa-exclamation-circle"></i>
+                                            检测到外部修改
+                                        </span>
+                                        <button class="text-xs text-primary hover:underline">查看差异</button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="p-2 text-text-secondary hover:text-text hover:bg-border rounded-lg transition-colors"><i class="fas fa-eye"></i></button>
+                                    <button class="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"><i class="fas fa-sync-alt"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="flex items-start gap-4">
+                                <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-handshake text-purple-400"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-medium">WorkBuddy</span>
+                                            <span class="tool-badge bg-success/20 text-success">已启用</span>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" checked class="sr-only peer">
+                                            <div class="w-9 h-5 bg-border rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                                        </label>
+                                    </div>
+                                    <div class="text-xs text-text-secondary mb-3">
+                                        <div class="flex items-center gap-4 mt-2 flex-wrap">
+                                            <span><i class="fas fa-file-alt mr-1 text-text-muted"></i>~/.workbuddy/WORKBUDDY.md</span>
+                                            <span><i class="fas fa-folder mr-1 text-text-muted"></i>项目级 WORKBUDDY.md</span>
+                                            <span class="flex items-center gap-1"><i class="fas fa-key mr-1 text-success"></i><span class="text-success">API已配置</span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="p-2 text-text-secondary hover:text-text hover:bg-border rounded-lg transition-colors"><i class="fas fa-eye"></i></button>
+                                    <button class="p-2 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"><i class="fas fa-sync-alt"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== Settings Page (simplified) ========== -->
+            <div id="page-settings" class="page-content flex-1 overflow-y-auto scrollbar-thin p-6 hidden">
+                <div class="max-w-2xl mx-auto">
+                    <h2 class="text-lg font-semibold mb-6">设置</h2>
+                    <div class="space-y-4">
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="text-sm font-medium mb-2">外观</div>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs text-text-secondary w-20">主题</span>
+                                <select class="flex-1 px-3 py-2 bg-sidebar border border-border rounded-md text-sm">
+                                    <option selected>深色主题</option>
+                                    <option>浅色主题</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="text-sm font-medium mb-2">同步</div>
+                            <label class="flex items-center gap-2 cursor-pointer mb-3">
+                                <input type="checkbox" checked class="rounded border-border bg-card text-primary">
+                                <span class="text-sm">自动同步</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" class="rounded border-border bg-card text-primary">
+                                <span class="text-sm">检测到外部修改时提醒</span>
+                            </label>
+                        </div>
+                        <div class="p-4 bg-card rounded-lg border border-border">
+                            <div class="text-sm font-medium mb-2">数据目录</div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" value="C:\Users\EDY\.agent-hub" class="flex-1 px-3 py-2 bg-sidebar border border-border rounded-md text-sm font-mono text-text-secondary" readonly>
+                                <button class="px-3 py-2 bg-border hover:bg-border/80 rounded-md text-sm transition-colors">更改</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Navigation
+        const pageTitles = {
+            dashboard: '仪表盘',
+            global: '全局配置',
+            project: '项目配置',
+            api: 'API 配置中心',
+            snippets: '片段库',
+            sync: '同步中心',
+            workflow: '工作流演示',
+            settings: '设置'
+        };
+
+        function switchPage(pageName) {
+            document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+            document.getElementById('page-' + pageName)?.classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(n => {
+                n.classList.remove('bg-primary/15', 'text-text', 'border-l-2', 'border-primary');
+                n.classList.add('text-text-secondary');
+            });
+            const navItem = document.querySelector(`.nav-item[data-page="${pageName}"]`);
+            if (navItem) {
+                navItem.classList.add('bg-primary/15', 'text-text', 'border-l-2', 'border-primary');
+                navItem.classList.remove('text-text-secondary');
+            }
+            document.getElementById('page-title').textContent = pageTitles[pageName] || pageName;
+        }
+
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => switchPage(item.dataset.page));
+        });
+
+        // Resource type tabs (global config)
+        const resourceTitles = {
+            instructions: { title: 'AI 角色定义', subtitle: 'persona' },
+            rules: { title: 'Python 规范', subtitle: 'rule · path' },
+            settings: { title: '环境变量', subtitle: 'envVars' },
+            hooks: { title: '自动格式化', subtitle: 'PostToolUse · Write' },
+            skills: { title: '/review-pr', subtitle: '代码审查' }
+        };
+
+        document.querySelectorAll('.res-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const resType = tab.dataset.res;
+                // Update tabs
+                document.querySelectorAll('.res-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                // Update lists
+                document.querySelectorAll('[id^="res-list-"]').forEach(l => l.classList.add('hidden'));
+                document.getElementById('res-list-' + resType)?.classList.remove('hidden');
+                // Update editors
+                document.querySelectorAll('[id^="editor-"]').forEach(e => {
+                    if (e.id.startsWith('editor-') && !e.id.includes('lines')) e.classList.add('hidden');
+                });
+                document.getElementById('editor-' + resType)?.classList.remove('hidden');
+                // Update title
+                const info = resourceTitles[resType] || { title: '', subtitle: '' };
+                document.getElementById('editor-title').textContent = info.title;
+                document.getElementById('editor-subtitle').textContent = info.subtitle;
+            });
+        });
+
+        // Preview tabs
+        document.querySelectorAll('.preview-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.preview-tab').forEach(t => {
+                    t.classList.remove('tab-active');
+                    t.classList.add('text-text-secondary');
+                });
+                tab.classList.add('tab-active');
+                tab.classList.remove('text-text-secondary');
+                const paths = {
+                    claude: '~/.claude/CLAUDE.md',
+                    trae: '~/.trae/AGENTS_GLOBAL.md',
+                    codex: '~/.codex/CODEX.md',
+                    workbuddy: '~/.workbuddy/WORKBUDDY.md'
+                };
+                document.getElementById('preview-path').textContent = paths[tab.dataset.tool];
+            });
+        });
+
+        // Section items
+        document.querySelectorAll('.section-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.section-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+        });
+
+        // Workflow demo animation
+        let workflowRunning = false;
+        async function runWorkflowDemo() {
+            if (workflowRunning) return;
+            workflowRunning = true;
+
+            switchPage('workflow');
+            const btn = document.getElementById('play-workflow-btn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 演示中...';
+            btn.disabled = true;
+
+            // Reset all steps
+            for (let i = 1; i <= 5; i++) {
+                const step = document.getElementById('wstep-' + i);
+                step.classList.remove('active', 'done');
+                const connector = step.querySelector('.workflow-connector');
+                if (connector) connector.classList.remove('flowing');
+                step.querySelector('.step-icon').className = 'step-icon w-10 h-10 rounded-full bg-border flex items-center justify-center flex-shrink-0 text-text-muted';
+                step.querySelector('.step-icon').innerHTML = step.querySelector('.step-icon').innerHTML.replace('fa-check', step.dataset.icon || '');
+            }
+
+            const icons = {
+                1: '<i class="fas fa-folder-plus"></i>',
+                2: '<i class="fas fa-terminal"></i>',
+                3: '<i class="fas fa-sliders"></i>',
+                4: '<i class="fas fa-sync-alt"></i>',
+                5: '<i class="fas fa-code"></i>'
+            };
+
+            for (let i = 1; i <= 5; i++) {
+                await new Promise(r => setTimeout(r, i === 1 ? 500 : 1200));
+                const step = document.getElementById('wstep-' + i);
+                step.classList.add('active');
+
+                // Start connector animation
+                const connector = step.querySelector('.workflow-connector');
+                if (connector) {
+                    connector.classList.add('flowing');
+                    await new Promise(r => setTimeout(r, 1000));
+                    connector.classList.remove('flowing');
+                }
+
+                // Mark as done
+                step.classList.add('done');
+                step.querySelector('.step-icon').innerHTML = '<i class="fas fa-check"></i>';
+            }
+
+            btn.innerHTML = '<i class="fas fa-redo"></i> 重新演示';
+            btn.disabled = false;
+            workflowRunning = false;
+        }
+
+        document.getElementById('play-workflow-btn')?.addEventListener('click', runWorkflowDemo);
+        document.getElementById('workflow-demo-btn')?.addEventListener('click', runWorkflowDemo);
+
+        // Sync button animation
+        function simulateSync() {
+            const btn = document.getElementById('sync-all-btn');
+            const text = document.getElementById('sync-all-text');
+            const status = document.getElementById('sync-status');
+            const icon = btn.querySelector('i');
+
+            icon.classList.add('fa-spin');
+            text.textContent = '同步中...';
+            status.innerHTML = '<span class="w-2 h-2 rounded-full bg-warning animate-pulse-slow"></span><span class="text-xs text-text-muted">同步中...</span>';
+
+            setTimeout(() => {
+                icon.classList.remove('fa-spin');
+                text.textContent = '一键同步所有工具';
+                status.innerHTML = '<span class="w-2 h-2 rounded-full bg-success"></span><span class="text-xs text-text-muted">已同步 · 刚刚</span>';
+            }, 2000);
+        }
+
+        document.getElementById('sync-all-btn')?.addEventListener('click', simulateSync);
+        document.getElementById('sync-btn')?.addEventListener('click', simulateSync);
+
+        // Apply API button animation
+        document.getElementById('apply-api-btn')?.addEventListener('click', function() {
+            const orig = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 应用中...';
+            this.disabled = true;
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-check"></i> 已应用';
+                setTimeout(() => {
+                    this.innerHTML = orig;
+                    this.disabled = false;
+                }, 1500);
+            }, 1500);
+        });
+
+        // Project API override toggle
+        document.getElementById('project-api-override')?.addEventListener('change', function() {
+            const btn = this.closest('.bg-card\\/50').querySelector('button');
+            if (this.checked) {
+                btn.disabled = false;
+                btn.classList.remove('text-text-secondary');
+                btn.classList.add('text-text');
+            } else {
+                btn.disabled = true;
+                btn.classList.add('text-text-secondary');
+                btn.classList.remove('text-text');
+            }
+        });
+    </script>
+</body>
+</html>
