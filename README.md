@@ -23,13 +23,31 @@ Write your rules once, sync everywhere. DotAgent manages `.claude/`, `.codex/`, 
 ## Quick Start
 
 ```bash
+# Initialize a project
+dotagent init
 
-Initialize a project dotagent init
-Sync configs to all tools dotagent sync
-Add a path-scoped rule
+# Sync configs to all tools
+dotagent sync
+
+# Add a path-scoped rule
 dotagent rule add --globs "**/*.py" --name python-style
-Add a hook (auto-format on file write)dotagent hook template apply auto-format
 
+# Add a hook (auto-format on file write)
+dotagent hook template apply auto-format
+```
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run tauri dev
+
+# Build for production
+npm run tauri build
+```
 
 ## Status
 
@@ -38,4 +56,3 @@ Add a hook (auto-format on file write)dotagent hook template apply auto-format
 ## License
 
 MIT
-

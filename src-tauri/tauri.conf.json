@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "productName": "DotAgent",
+  "version": "0.1.0",
+  "identifier": "com.dotagent.app",
+  "description": "Unified configuration hub for AI coding agents",
+  "copyright": "Copyright (c) 2026 DotAgent",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "distDir": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "DotAgent",
+        "width": 1200,
+        "height": 800,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["all"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+  }
+}
