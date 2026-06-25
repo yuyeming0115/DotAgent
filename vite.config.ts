@@ -9,4 +9,9 @@ export default defineConfig({
       "@": resolve(__dirname, "./src"),
     },
   },
+  server: {
+    port: 1420,
+    strictPort: true,
+  },
+  clearScreen: false,
 });
