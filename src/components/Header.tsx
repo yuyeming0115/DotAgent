@@ -1,4 +1,4 @@
-import type { PageType } from '../App'
+import type { PageType } from '../types'
 
 interface HeaderProps {
   currentPage: PageType

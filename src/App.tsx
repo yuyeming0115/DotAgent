@@ -7,8 +7,7 @@ import ApiConfig from './pages/ApiConfig'
 import GlobalConfig from './pages/GlobalConfig'
 import ProjectConfig from './pages/ProjectConfig'
 import SnippetLibrary from './pages/SnippetLibrary'
-
-type PageType = 'dashboard' | 'api' | 'global' | 'project' | 'snippets'
+import type { PageType } from './types'
 
 const pageRoutes: Record<string, PageType> = {
   '/': 'dashboard',
