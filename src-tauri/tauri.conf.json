@@ -6,12 +6,9 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist",
-    "devtools": true
+    "frontendDist": "../dist"
   },
   "app": {
-    "description": "Unified configuration hub for AI coding agents",
-    "copyright": "Copyright (c) 2026 DotAgent",
     "windows": [
       {
         "title": "DotAgent",
@@ -32,6 +29,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "description": "Unified configuration hub for AI coding agents",
+    "copyright": "Copyright (c) 2026 DotAgent",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
